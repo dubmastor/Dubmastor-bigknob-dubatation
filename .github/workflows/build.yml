@@ -1,0 +1,48 @@
+name: Build DubMastor Big Knob
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: Windows
+          - os: macos-latest
+            name: macOS
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+
+      - name: Collect (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p out
+          cp -r "build/DubKnob_artefacts/Release/VST3/DubMastor Big Knob.vst3" out/
+          cp "build/DubKnob_artefacts/Release/Standalone/DubMastor Big Knob.exe" out/ || true
+
+      - name: Collect (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p out
+          cp -R "build/DubKnob_artefacts/Release/VST3/DubMastor Big Knob.vst3" out/
+          cp -R "build/DubKnob_artefacts/Release/AU/DubMastor Big Knob.component" out/
+          cp -R "build/DubKnob_artefacts/Release/Standalone/DubMastor Big Knob.app" out/
+          # assinatura ad-hoc para o macOS aceitar o plugin localmente
+          codesign --force --deep -s - out/*.vst3 out/*.component out/*.app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DubMastorBigKnob-${{ matrix.name }}
+          path: out
