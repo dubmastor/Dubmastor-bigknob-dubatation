@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.22)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "")
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "")
 
-project(DubKnob VERSION 2.0.0)
+project(DubKnob VERSION 2.1.0)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -31,7 +31,7 @@ juce_add_plugin(DubKnob
     NEEDS_MIDI_INPUT FALSE
     NEEDS_MIDI_OUTPUT FALSE
     COPY_PLUGIN_AFTER_BUILD FALSE
-    VST3_CATEGORIES Fx Delay Reverb Filter)
+    VST3_CATEGORIES Fx Delay Filter Dynamics)
 
 target_sources(DubKnob PRIVATE
     Source/PluginProcessor.cpp

@@ -34,14 +34,13 @@ public:
 
     float getDisplayFrequency() const { return displayFreq.load(); }
     float getDisplayBpm() const       { return displayBpm.load(); }
-    dub::EQSettings getEqSettings (bool spring) const
+    dub::EQSettings getEqSettings() const
     {
-        const char* pre = spring ? "eqS" : "eqE";
         dub::EQSettings e;
-        e.hpHz  = getP ((std::string (pre) + "Hp").c_str());
-        e.lpHz  = getP ((std::string (pre) + "Lp").c_str());
-        e.midHz = getP ((std::string (pre) + "Mf").c_str());
-        e.midDb = getP ((std::string (pre) + "Mg").c_str());
+        e.hpHz  = getP ("eqEHp");
+        e.lpHz  = getP ("eqELp");
+        e.midHz = getP ("eqEMf");
+        e.midDb = getP ("eqEMg");
         return e;
     }
     // medidor do MAXIMIZER (picos lineares do último bloco, GR em dB <= 0, LUFS curto prazo)
@@ -60,15 +59,14 @@ private:
 
     dub::TubbyFilter   filter;
     dub::TapeEcho      echo;
-    dub::SpringReverb  spring;
     dub::DubSiren      siren;
-    dub::ReturnEQ      echoEq, springEq;
+    dub::ReturnEQ      echoEq;
     dub::Maximizer     maximizer;
     dub::LoudnessMeter loudness;
     std::atomic<float> mInPeak[2] { { 0.0f }, { 0.0f } }, mOutPeak[2] { { 0.0f }, { 0.0f } };
     std::atomic<float> mGrDb { 0.0f }, mLufs { -70.0f };
     std::atomic<float> vuRms[2] { { 0.0f }, { 0.0f } };
-    juce::SmoothedValue<float> dryGain, springGain, outGain;
+    juce::SmoothedValue<float> dryGain, outGain;
 
     std::atomic<float> displayFreq { 20.0f }, displayBpm { 120.0f };
     std::map<std::string, std::atomic<float>*> params;

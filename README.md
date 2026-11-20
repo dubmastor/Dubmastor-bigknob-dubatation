@@ -2,10 +2,10 @@
 
 **[⬇️ Baixar a versão mais nova](https://github.com/dubmastor/Dubmastor-bigknob-dubatation/releases/latest)** · instruções em [Download e instalação](#️-download-e-instalação-no-cubase)
 
-Estação de dub num plugin só: **filtro big knob** inspirado no high-pass por degraus do King Tubby, **eco de fita** com cabeçotes estilo Space Echo e **reverb de mola**.
+Estação de dub num plugin só: **filtro big knob** inspirado no high-pass por degraus do King Tubby, **eco de fita** com cabeçotes estilo Space Echo, **sirene de dub** e **maximizer** no final.
 Formatos: **VST3** (Windows/macOS, para o Cubase), **AU** (macOS) e versão **Standalone**.
 
-Cadeia: entrada → filtro → seco + eco → mola (sobre o eco e o que você joga no eco) → **MAXIMIZER**. A sirene entra direto na saída e um pouco na mola, antes do maximizer.
+Cadeia: entrada → filtro → seco + eco (com EQ de retorno) + sirene → **MAXIMIZER**.
 
 ## FILTER
 | Controle | O que faz |
@@ -31,9 +31,6 @@ Cadeia: entrada → filtro → seco + eco → mola (sobre o eco e o que você jo
 ### RETURN EQ (eco)
 EQ nas repetições, com visor que desenha a curva: **HP** (corta grave, OFF a 2 kHz), **MID** (150 Hz – 6 kHz) com **GAIN** (±12 dB) para acentuar ou cavar um médio, e **LP** (corta agudo, 800 Hz a OFF). Duplo clique volta ao padrão.
 
-## SPRING
-**Decay**, **Tone**, **Level** e **SHAKE** (o tranco de chutar o tanque de mola).
-Tem o mesmo **RETURN EQ** do eco (HP, MID, GAIN, LP com visor). Dica: HP em 300–500 Hz deixa a mola com aquele som fino e metálico de dub.
 
 ## DUB SIREN
 Sirene de sound system com delay próprio. Mesmo depois que você solta o FIRE, as repetições continuam.
@@ -42,16 +39,17 @@ Sirene de sound system com delay próprio. Mesmo depois que você solta o FIRE, 
 | **PITCH** | Nota base (80 Hz – 2.5 kHz) |
 | **RATE** | Velocidade da modulação (0.1 – 25 Hz) |
 | **DEPTH** | Quanto o pitch varia (até ±2 oitavas) |
-| **WAVE** | Forma da modulação: Sine, Triangle, Square (sirene de polícia), Saw Up, Saw Down (o "piu-piu" clássico) |
+| **LFO WAVE** | Chave seletora da forma da modulação: Sine, Triangle, Square (sirene de polícia), Saw Up, Saw Down (o "piu-piu" clássico). **Clique no símbolo** da onda para escolher, **clique na chave** para avançar, ou arraste |
 | **DELAY / REPEATS** | Tempo (30–2000 ms) e realimentação do delay da sirene |
-| **LEVEL** | Volume da sirene (ela também passa um pouco pela mola) |
+| **LEVEL** | Volume da sirene |
 | **FIRE** | Segure para tocar. A modulação recomeça do início a cada disparo |
 | **HOLD** | Mantém a sirene ligada sem segurar |
 
 ## OUTPUT LEVEL
+Na coluna da direita, acima do MASTER.
 Par de VU meters de ponteiro (L/R), com balística de VU e calibração 0 VU = -18 dBFS. A lâmpada vermelha acende acima de +3 VU.
 
-## MAXIMIZER (novo na v2.0)
+## MAXIMIZER
 Compressor de "cola" + limiter brickwall no fim da cadeia, controlado por um fader só, no estilo Ozone.
 | Controle | O que faz |
 |---|---|
@@ -102,7 +100,7 @@ Não precisa de conta no GitHub para baixar.
 - **Atualizando de uma versão anterior:** feche o Cubase, substitua o `.vst3` antigo pelo novo e abra de novo.
 
 ### Uso recomendado
-Crie um **FX Channel** com o DubMastor Big Knob, **DRY em 0** e **SEND em 100%**, e mande bateria, skank e voz pelos sends. Ligue o **W** (Write) da pista para gravar os movimentos do big knob, THROW, SHAKE e FIRE.
+Crie um **FX Channel** com o DubMastor Big Knob, **DRY em 0** e **SEND em 100%**, e mande bateria, skank e voz pelos sends. Ligue o **W** (Write) da pista para gravar os movimentos do big knob, THROW e FIRE.
 
 ## Como novas versões são geradas
 Cada envio para a branch `main` compila o plugin automaticamente (aba **Actions**). Quando uma tag `v*` é criada (ex.: `v2.0.0`), os instaladores são publicados na página de **Releases**.
@@ -119,7 +117,7 @@ cmake --build build --config Release
 ## Estrutura
 
 - `Source/TubbyFilter.h` — filtro SVF com saturação
-- `Source/DubFX.h` — eco de fita multicabeçote e reverb de mola
+- `Source/DubFX.h` — eco de fita multicabeçote, EQ de retorno, sirene, maximizer e medidor de loudness
 - `Source/PluginProcessor.*` — parâmetros e processamento
 - `Source/PluginEditor.*` — interface
 - `tests/render_demo.cpp` — teste da resposta em frequência e geração de áudio demo

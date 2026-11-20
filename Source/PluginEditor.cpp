@@ -330,7 +330,6 @@ void DubLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int w, i
 DubPanel::DubPanel (DubKnobProcessor& p)
     : proc (p),
       throwBtn ("THROW", p.apvts.getParameter ("throw")),
-      shakeBtn ("SHAKE", p.apvts.getParameter ("shake")),
       fireBtn ("FIRE", p.apvts.getParameter ("sirFire"))
 {
     setLookAndFeel (&lnf);
@@ -362,16 +361,10 @@ DubPanel::DubPanel (DubKnobProcessor& p)
     addAndMakeVisible (throwBtn);
     echoSync.button.onClick = [this] { updateSyncVisibility(); };
 
-    setupKnob (spDecay, "spDecay", "DECAY");
-    setupKnob (spTone,  "spTone",  "TONE");
-    setupKnob (spLevel, "spLevel", "LEVEL");
-    addAndMakeVisible (shakeBtn);
 
     setupKnob (eqEHp, "eqEHp", "HP");   setupKnob (eqEMf, "eqEMf", "MID");
     setupKnob (eqEMg, "eqEMg", "GAIN"); setupKnob (eqELp, "eqELp", "LP");
-    setupKnob (eqSHp, "eqSHp", "HP");   setupKnob (eqSMf, "eqSMf", "MID");
-    setupKnob (eqSMg, "eqSMg", "GAIN"); setupKnob (eqSLp, "eqSLp", "LP");
-    for (auto* k : { &eqEHp, &eqEMf, &eqEMg, &eqELp, &eqSHp, &eqSMf, &eqSMg, &eqSLp })
+    for (auto* k : { &eqEHp, &eqEMf, &eqEMg, &eqELp })
     {
         k->slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 66, 14);
         k->label.setFont (stencil (10.0f, 0.12f));
@@ -386,6 +379,8 @@ DubPanel::DubPanel (DubKnobProcessor& p)
     sirWave.slider.setRotaryParameters (kSelStart, kSelEnd, true);
     sirWave.slider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     sirWave.slider.setMouseDragSensitivity (120);
+    sirWave.slider.addMouseListener (this, false);   // clique: símbolo escolhe a onda, chave avança
+    sirWave.slider.setTooltip ("Clique num simbolo para escolher a onda, ou na chave para avancar");
     sirWave.label.setText ("LFO WAVE", juce::dontSendNotification);
     sirWave.label.setColour (juce::Label::textColourId, colours::jamGreen.darker (0.3f));
     setupKnob (sirDly,   "sirDly",   "DELAY");
@@ -458,6 +453,32 @@ void DubPanel::updateSyncVisibility()
     echoMs.slider.setVisible (! sync); echoMs.label.setVisible (! sync);
 }
 
+juce::Point<float> DubPanel::waveIconCentre (int i) const
+{
+    const auto circ = knobCircle (sirWave.slider);
+    const auto c = circ.getCentre();
+    const float rr = circ.getWidth() * 0.5f;
+    const float a = kSelStart + (kSelEnd - kSelStart) * (float) i / 4.0f;
+    return { c.x + std::sin (a) * (rr + 17.0f), c.y - std::cos (a) * (rr + 17.0f) };
+}
+
+void DubPanel::mouseUp (const juce::MouseEvent& e)
+{
+    if (e.eventComponent != &sirWave.slider || e.mouseWasDraggedSinceMouseDown())
+        return;
+    const auto p = e.getEventRelativeTo (this).position;
+    int best = -1; float bestD = 15.0f;
+    for (int i = 0; i < 5; ++i)
+    {
+        const float d = p.getDistanceFrom (waveIconCentre (i));
+        if (d < bestD) { bestD = d; best = i; }
+    }
+    if (best < 0 && knobCircle (sirWave.slider).expanded (6.0f).contains (p))
+        best = (juce::roundToInt (sirWave.slider.getValue()) + 1) % 5;   // clique na chave: próxima onda
+    if (best >= 0)
+        sirWave.slider.setValue (best, juce::sendNotificationSync);
+}
+
 void DubPanel::timerCallback()
 {
     // balística de VU: 0 VU = -18 dBFS, escala linear em tensão de -20 a +3 VU
@@ -488,7 +509,6 @@ void DubPanel::timerCallback()
     lufsDisp += 0.25f * (proc.getLufs() - lufsDisp);
     repaint (maxPanel);
     repaint (echoGraph.expanded (4));
-    repaint (springGraph.expanded (4));
     repaint (sirWave.slider.getBounds().expanded (4));
 
     const float f = proc.getDisplayFrequency();
@@ -793,7 +813,7 @@ void DubPanel::renderBackground()
     }
     g.setColour (colours::inkSoft);
     g.setFont (stencil (10.5f, 0.25f));
-    g.drawText ("KING TUBBY TRIBUTE   /   V2.0", plate.getX() + 34, 52, 500, 14, juce::Justification::left);
+    g.drawText ("KING TUBBY TRIBUTE   /   V2.1", plate.getX() + 34, 52, 500, 14, juce::Justification::left);
 
     // faixas pintadas (vermelho / dourado / verde), desgastadas
     {
@@ -828,14 +848,13 @@ void DubPanel::renderBackground()
     };
     section (filterPanel, "FILTER");
     section (echoPanel,   "TAPE ECHO");
-    section (springPanel, "SPRING");
     section (masterPanel, "MASTER");
     section (sirenPanel,  "DUB SIREN");
     section (maxPanel,    "MAXIMIZER");
     section (vuPanel,     "OUTPUT LEVEL");
 
     // --- desgaste em volta dos knobs mais usados
-    for (auto* sl : { &bigKnob, &echoDiv.slider, &echoFb.slider, &echoSend.slider, &spLevel.slider, &out.slider, &sirPitch.slider })
+    for (auto* sl : { &bigKnob, &echoDiv.slider, &echoFb.slider, &echoSend.slider, &out.slider, &sirPitch.slider })
     {
         const auto kc = knobCircle (*sl);
         const float rr = kc.getWidth() * 0.5f * 1.55f;
@@ -848,7 +867,7 @@ void DubPanel::renderBackground()
 
     // --- escalas dos knobs
     for (auto* k : { &res, &drive, &fmix, &echoFb, &echoTone, &echoWow, &echoSend,
-                     &spDecay, &spTone, &spLevel, &dry, &out })
+                     &dry, &out })
         drawKnobScale (g, k->slider, 11, true);
     drawKnobScale (g, echoHeads.slider, 7, false);
     for (auto* k : { &sirPitch, &sirRate, &sirDepth, &sirDly, &sirFb, &sirLevel })
@@ -885,12 +904,12 @@ void DubPanel::renderBackground()
         g.setColour (juce::Colours::white.withAlpha (0.5f));
         g.drawRoundedRectangle (cell.reduced (2.5f), 4.5f, 0.8f);
     }
-    for (auto* k : { &eqEHp, &eqEMf, &eqEMg, &eqELp, &eqSHp, &eqSMf, &eqSMg, &eqSLp })
+    for (auto* k : { &eqEHp, &eqEMf, &eqEMg, &eqELp })
         drawKnobScale (g, k->slider, 11, false);
     drawKnobScale (g, maxCeil.slider, 11, false);
 
     // divisória gravada + "RETURN EQ" acima dos visores
-    for (auto gr : { echoGraph, springGraph })
+    for (auto gr : { echoGraph })
     {
         const float y = (float) gr.getY() - 14.0f;
         g.setColour (colours::ink.withAlpha (0.4f));
@@ -972,7 +991,7 @@ void DubPanel::paint (juce::Graphics& g)
         for (int i = 0; i < 5; ++i)
         {
             const float a = kSelStart + (kSelEnd - kSelStart) * (float) i / 4.0f;
-            const juce::Point<float> pc (c.x + std::sin (a) * (rr + 17.0f), c.y - std::cos (a) * (rr + 17.0f));
+            const juce::Point<float> pc = waveIconCentre (i);
             const auto ir = juce::Rectangle<float> (17, 10).withCentre (pc);
             const juce::Point<float> d1 (c.x + std::sin (a) * (rr + 4.0f), c.y - std::cos (a) * (rr + 4.0f));
             if (i == active)
@@ -992,8 +1011,7 @@ void DubPanel::paint (juce::Graphics& g)
         }
     }
 
-    drawEqGraph (g, echoGraph.toFloat(), false);
-    drawEqGraph (g, springGraph.toFloat(), true);
+    drawEqGraph (g, echoGraph.toFloat());
     drawMaximizer (g);
 }
 
@@ -1114,7 +1132,7 @@ void DubPanel::drawMaximizer (juce::Graphics& g)
 }
 
 // visor da curva de EQ: vidro escuro, grade e curva âmbar (20 Hz – 20 kHz, ±15 dB)
-void DubPanel::drawEqGraph (juce::Graphics& g, juce::Rectangle<float> r, bool isSpring)
+void DubPanel::drawEqGraph (juce::Graphics& g, juce::Rectangle<float> r)
 {
     g.setColour (juce::Colour (0xff0c0907));
     g.fillRoundedRectangle (r.expanded (3), 4.0f);
@@ -1138,7 +1156,7 @@ void DubPanel::drawEqGraph (juce::Graphics& g, juce::Rectangle<float> r, bool is
     for (auto [f, t] : { std::pair<float, const char*> { 100.0f, "100" }, { 1000.0f, "1k" }, { 10000.0f, "10k" } })
         g.drawText (t, juce::Rectangle<float> (24, 9).withCentre ({ xOf (f), r.getBottom() - 6 }), juce::Justification::centred);
 
-    const auto e = proc.getEqSettings (isSpring);
+    const auto e = proc.getEqSettings();
     const float fs = proc.getSampleRate() > 0 ? (float) proc.getSampleRate() : 48000.0f;
     juce::Path curve;
     const int n = juce::jmax (40, (int) r.getWidth());
@@ -1265,17 +1283,15 @@ void DubPanel::resized()
     area.removeFromRight (12);
     auto bottomRow = area.removeFromBottom (170);
     area.removeFromBottom (18);
-    sirenPanel = bottomRow.removeFromLeft (690);
-    bottomRow.removeFromLeft (12);
-    vuPanel = bottomRow;
+    sirenPanel = bottomRow;
 
     filterPanel = area.removeFromLeft (380);
     area.removeFromLeft (12);
     echoPanel = area.removeFromLeft (380);
     area.removeFromLeft (12);
-    masterPanel = area.removeFromBottom (140);
+    masterPanel = area.removeFromBottom (160);
     area.removeFromBottom (16);
-    springPanel = area;
+    vuPanel = area;
 
     // FILTER
     {
@@ -1321,21 +1337,6 @@ void DubPanel::resized()
         placeEq (r, eqEHp, eqEMf, eqEMg, eqELp, echoGraph);
     }
 
-    // SPRING
-    {
-        auto r = springPanel.reduced (10);
-        r.removeFromTop (14);
-        auto row = r.removeFromTop (100);
-        const int w3 = row.getWidth() / 3;
-        placeKnob (spDecay, row.removeFromLeft (w3));
-        placeKnob (spTone,  row.removeFromLeft (w3));
-        placeKnob (spLevel, row);
-        r.removeFromTop (12);
-        shakeBtn.setBounds (r.removeFromTop (46).reduced (24, 0));
-        r.removeFromTop (6);
-        placeEq (r, eqSHp, eqSMf, eqSMg, eqSLp, springGraph);
-    }
-
     // MASTER
     {
         auto r = masterPanel.reduced (10);
@@ -1349,8 +1350,9 @@ void DubPanel::resized()
     {
         auto r = sirenPanel.reduced (10);
         r.removeFromTop (14);
-        auto btns = r.removeFromRight (124);
-        const int waveW = 122, kw = (r.getWidth() - waveW) / 6;
+        auto btns = r.removeFromRight (150);
+        r.removeFromRight (10);
+        const int waveW = 150, kw = (r.getWidth() - waveW) / 6;
         for (auto* k : { &sirPitch, &sirRate, &sirDepth, &sirDly, &sirFb, &sirLevel, &sirWave })
             placeKnob (*k, r.removeFromLeft (k == &sirWave ? waveW : kw).withTrimmedTop (8));
         btns = btns.reduced (6, 4);
@@ -1385,12 +1387,12 @@ void DubPanel::resized()
 
     // VU L/R
     {
-        auto r = vuPanel.reduced (14);
-        r.removeFromTop (12);
-        const int w = (r.getWidth() - 12) / 2;
-        vuArea[0] = r.removeFromLeft (w).withSizeKeepingCentre (w, juce::jmin (r.getHeight(), 118));
-        r.removeFromLeft (12);
-        vuArea[1] = r.withSizeKeepingCentre (w, juce::jmin (r.getHeight(), 118));
+        auto r = vuPanel.reduced (16);
+        r.removeFromTop (14);
+        const int h = (r.getHeight() - 14) / 2;
+        vuArea[0] = r.removeFromTop (h).withSizeKeepingCentre (juce::jmin (r.getWidth(), 250), h);
+        r.removeFromTop (14);
+        vuArea[1] = r.withSizeKeepingCentre (juce::jmin (r.getWidth(), 250), h);
     }
 
     renderBackground();

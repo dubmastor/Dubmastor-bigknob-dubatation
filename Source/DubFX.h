@@ -1,5 +1,5 @@
 #pragma once
-// Eco de fita e reverb de mola da estação Dub Knob. Independente do JUCE.
+// Eco de fita, EQ, sirene e maximizer da estação Dub Knob. Independente do JUCE.
 
 #include <cmath>
 #include <vector>
@@ -129,118 +129,6 @@ private:
 };
 
 //==============================================================================
-// Reverb de mola: cadeia de allpass dispersiva (o "chirp/boing") dentro de um
-// loop de atraso, mais difusão. SHAKE injeta um tranco como chutar o tanque.
-struct SpringSettings
-{
-    float decay  = 0.5f;     // 0..1
-    float toneHz = 3500.0f;
-    bool  shake  = false;
-};
-
-class SpringReverb
-{
-public:
-    void prepare (double sampleRate)
-    {
-        fs = (float) sampleRate;
-        const float loopSec[2] = { 0.0337f, 0.0419f };
-        const float diffSec[2][2] = { { 0.0071f, 0.0113f }, { 0.0083f, 0.0127f } };
-        for (int ch = 0; ch < 2; ++ch)
-        {
-            auto& c = chans[(size_t) ch];
-            c.loop.assign ((size_t) (loopSec[ch] * fs) + 1, 0.0f);
-            for (int k = 0; k < 2; ++k) c.diff[(size_t) k].assign ((size_t) (diffSec[ch][k] * fs) + 1, 0.0f);
-        }
-        hpA = OnePole::coef (220.0f, fs);
-        reset();
-    }
-
-    void reset()
-    {
-        for (auto& c : chans)
-        {
-            std::fill (c.loop.begin(), c.loop.end(), 0.0f);
-            for (auto& d : c.diff) std::fill (d.begin(), d.end(), 0.0f);
-            c.ap.fill ({}); c.li = 0; c.di = { 0, 0 }; c.fb = 0; c.hp.z = 0; c.tone.z = 0;
-        }
-        shakeEnv = 0; lastShake = false;
-    }
-
-    void setSettings (const SpringSettings& sp)
-    {
-        if (sp.shake && ! lastShake) shakeEnv = 1.0f; // borda de subida
-        lastShake = sp.shake;
-        s = sp;
-    }
-
-    inline void processSample (float inL, float inR, float& outL, float& outR)
-    {
-        const float decayG = 0.55f + 0.38f * std::clamp (s.decay, 0.0f, 1.0f);
-        const float toneA  = OnePole::coef (s.toneHz, fs);
-
-        float kick = 0.0f;
-        if (shakeEnv > 1e-4f)
-        {
-            noise = noise * 1664525u + 1013904223u;
-            kick = shakeEnv * ((float) (noise >> 9) / 4194304.0f - 1.0f) * 0.8f;
-            shakeEnv *= std::exp (-1.0f / (0.04f * fs));
-        }
-
-        const float in[2] = { inL + kick, inR - kick };
-        float out[2];
-        for (int ch = 0; ch < 2; ++ch)
-        {
-            auto& c = chans[(size_t) ch];
-            float x = in[ch] - c.hp.lp (in[ch], hpA);   // mola não pega grave
-            float v = x + c.fb * decayG;
-
-            for (auto& a : c.ap)                        // dispersão -> "chirp"
-            {
-                const float y = -kAp * v + a.x1 + kAp * a.y1;
-                a.x1 = v; a.y1 = y; v = y;
-            }
-
-            const float delayed = c.loop[(size_t) c.li];
-            c.loop[(size_t) c.li] = v;
-            if (++c.li >= (int) c.loop.size()) c.li = 0;
-
-            c.fb = std::tanh (c.tone.lp (delayed, toneA));
-
-            float d = c.fb;                             // difusão Schroeder
-            for (int k = 0; k < 2; ++k)
-            {
-                auto& line = c.diff[(size_t) k]; int& idx = c.di[(size_t) k];
-                const float b = line[(size_t) idx];
-                const float y = -0.6f * d + b;
-                line[(size_t) idx] = d + 0.6f * y;
-                if (++idx >= (int) line.size()) idx = 0;
-                d = y;
-            }
-            out[ch] = d;
-        }
-        outL = out[0]; outR = out[1];
-    }
-
-private:
-    static constexpr int kStages = 40;
-    static constexpr float kAp = 0.62f;
-    struct AP { float x1 = 0, y1 = 0; };
-    struct Chan
-    {
-        std::vector<float> loop; int li = 0;
-        std::array<std::vector<float>, 2> diff; std::array<int, 2> di { 0, 0 };
-        std::array<AP, kStages> ap {};
-        OnePole hp, tone; float fb = 0;
-    };
-    std::array<Chan, 2> chans;
-    float fs = 44100.0f, hpA = 0, shakeEnv = 0;
-    bool lastShake = false;
-    unsigned noise = 12345u;
-    SpringSettings s;
-};
-
-//==============================================================================
 // Sirene de dub: oscilador com pitch modulado por LFO (forma selecionável),
 // LFO reinicia ao disparar, envelope curto e delay próprio com realimentação.
 struct SirenSettings
@@ -332,7 +220,7 @@ private:
 };
 
 //==============================================================================
-// EQ de retorno (eco e mola): HP 12 dB/oit, sino de médio e LP 12 dB/oit.
+// EQ de retorno do eco: HP 12 dB/oit, sino de médio e LP 12 dB/oit.
 // Filtros SVF (Simper) — podem ser girados ao vivo sem estalos.
 struct EQSettings
 {

@@ -58,6 +58,8 @@ private:
     };
 
     void timerCallback() override;
+    void mouseUp (const juce::MouseEvent&) override;   // clique nos símbolos / na chave LFO WAVE
+    juce::Point<float> waveIconCentre (int i) const;
     void setupKnob (Knob&, const juce::String& paramId, const juce::String& name);
     void setupToggle (Toggle&, const juce::String& paramId, const juce::String& text);
     void placeKnob (Knob&, juce::Rectangle<int>);
@@ -77,13 +79,12 @@ private:
     Knob echoDiv, echoMs, echoFb, echoTone, echoWow, echoSend, echoHeads;
     Toggle echoSync, echoPP;
     MomentaryButton throwBtn;
-    // mola + master
-    Knob spDecay, spTone, spLevel, dry, out;
-    MomentaryButton shakeBtn;
+    // master
+    Knob dry, out;
     // EQ de retorno
-    Knob eqEHp, eqEMf, eqEMg, eqELp, eqSHp, eqSMf, eqSMg, eqSLp;
-    juce::Rectangle<int> echoGraph, springGraph;
-    void drawEqGraph (juce::Graphics&, juce::Rectangle<float>, bool spring);
+    Knob eqEHp, eqEMf, eqEMg, eqELp;
+    juce::Rectangle<int> echoGraph;
+    void drawEqGraph (juce::Graphics&, juce::Rectangle<float>);
     void placeEq (juce::Rectangle<int>, Knob&, Knob&, Knob&, Knob&, juce::Rectangle<int>& graph);
     // sirene + VU
     Knob sirPitch, sirRate, sirDepth, sirWave, sirDly, sirFb, sirLevel;
@@ -108,7 +109,7 @@ private:
     juce::Image background;
     bool bgStepped = true, bgSync = true;
     juce::Rectangle<int> woodL, woodR, plate;
-    juce::Rectangle<int> bigArea, filterPanel, echoPanel, springPanel, masterPanel, echoInfo;
+    juce::Rectangle<int> bigArea, filterPanel, echoPanel, masterPanel, echoInfo;
     juce::String freqText, echoText;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DubPanel)

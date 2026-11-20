@@ -57,8 +57,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout DubKnobProcessor::createLayo
     p.push_back (std::make_unique<AudioParameterBool>  (ParameterID { "echoPP", 1 }, "Ping Pong", false));
     p.push_back (std::make_unique<AudioParameterBool>  (ParameterID { "throw", 1 }, "Throw", false));
 
-    // --- EQ de retorno do eco (eqE*) e da mola (eqS*)
-    for (auto [pre, name] : { std::pair<const char*, const char*> { "eqE", "Echo EQ" }, { "eqS", "Spring EQ" } })
+    // --- EQ de retorno do eco (eqE*)
+    for (auto [pre, name] : { std::pair<const char*, const char*> { "eqE", "Echo EQ" } })
     {
         const String pr (pre), nm (name);
         p.push_back (std::make_unique<AudioParameterFloat> (ParameterID { pr + "Hp", 1 }, nm + " HP", logRange (20.0f, 2000.0f), 20.0f,
@@ -69,11 +69,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout DubKnobProcessor::createLayo
                      Attr().withLabel ("Hz").withStringFromValueFunction ([] (float v, int) { return v > 19500.0f ? String ("OFF") : String (v / 1000.0f, 1) + " kHz"; })));
     }
 
-    // --- MOLA
-    p.push_back (std::make_unique<AudioParameterFloat> (ParameterID { "spDecay", 1 }, "Spring Decay", NormalisableRange<float> (0.0f, 100.0f), 50.0f, pct()));
-    p.push_back (std::make_unique<AudioParameterFloat> (ParameterID { "spTone", 1 }, "Spring Tone", logRange (1000.0f, 8000.0f), 3500.0f, hz()));
-    p.push_back (std::make_unique<AudioParameterFloat> (ParameterID { "spLevel", 1 }, "Spring Level", NormalisableRange<float> (0.0f, 100.0f), 20.0f, pct()));
-    p.push_back (std::make_unique<AudioParameterBool>  (ParameterID { "shake", 1 }, "Shake", false));
 
     // --- SIRENE
     auto logR = [] (float lo, float hi) { NormalisableRange<float> r (lo, hi); r.setSkewForCentre (std::sqrt (lo * hi)); return r; };
@@ -114,14 +109,12 @@ void DubKnobProcessor::prepareToPlay (double sampleRate, int)
 {
     filter.prepare (sampleRate, 2);
     echo.prepare (sampleRate);
-    spring.prepare (sampleRate);
     siren.prepare (sampleRate);
     echoEq.prepare (sampleRate);
     maximizer.prepare (sampleRate);
     loudness.prepare (sampleRate);
     setLatencySamples (maximizer.getLatency());
-    springEq.prepare (sampleRate);
-    for (auto* s : { &dryGain, &springGain, &outGain })
+    for (auto* s : { &dryGain, &outGain })
         s->reset (sampleRate, 0.02);
 }
 
@@ -160,10 +153,6 @@ void DubKnobProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     es.heads    = headMasks[juce::jlimit (0, 6, (int) getP ("echoHeads"))];
     echo.setSettings (es);
 
-    // mola
-    dub::SpringSettings ss;
-    ss.decay = getP ("spDecay") / 100.0f; ss.toneHz = getP ("spTone"); ss.shake = getP ("shake") > 0.5f;
-    spring.setSettings (ss);
 
     dub::SirenSettings sr;
     sr.pitchHz = getP ("sirPitch"); sr.rateHz = getP ("sirRate"); sr.depth = getP ("sirDepth") / 100.0f;
@@ -180,14 +169,12 @@ void DubKnobProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
         maximizer.setSettings (ms);
     }
     float inPk[2] = { 0, 0 }, outPk[2] = { 0, 0 }, grMin = 0.0f;
-    echoEq.setSettings (getEqSettings (false));
-    springEq.setSettings (getEqSettings (true));
+    echoEq.setSettings (getEqSettings());
 
     dryGain.setTargetValue (getP ("dry") / 100.0f);
-    springGain.setTargetValue (getP ("spLevel") / 100.0f);
     outGain.setTargetValue (juce::Decibels::decibelsToGain (getP ("out")));
 
-    // cadeia: entrada -> filtro -> (seco + eco) -> mola sobre tudo
+    // cadeia: entrada -> filtro -> (seco + eco com EQ) + sirene -> maximizer
     filter.process (buffer.getArrayOfWritePointers(), numCh, n);
     displayFreq.store (filter.currentFrequency());
 
@@ -197,16 +184,14 @@ void DubKnobProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     for (int i = 0; i < n; ++i)
     {
         const float xl = L[i], xr = R ? R[i] : xl;
-        float el, er, sl, sr2;
+        float el, er;
         const float sir = siren.processSample();
         echo.processSample (xl, xr, el, er);
         echoEq.processSample (el, er);
-        spring.processSample (0.5f * xl * es.send + el + 0.4f * sir, 0.5f * xr * es.send + er + 0.4f * sir, sl, sr2);
 
-        springEq.processSample (sl, sr2);
-        const float sg = springGain.getNextValue(), dg = dryGain.getNextValue(), og = outGain.getNextValue();
-        float yl = (xl * dg + el + sl * sg + sir) * og;
-        float yr = (xr * dg + er + sr2 * sg + sir) * og;
+        const float dg = dryGain.getNextValue(), og = outGain.getNextValue();
+        float yl = (xl * dg + el + sir) * og;
+        float yr = (xr * dg + er + sir) * og;
         inPk[0] = std::max (inPk[0], std::fabs (yl)); inPk[1] = std::max (inPk[1], std::fabs (yr));
         maximizer.processSample (yl, yr);
         grMin = std::min (grMin, maximizer.getLastGainReductionDb());

@@ -115,7 +115,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag || github.event.release.tag_name || github.ref_name }}
-          name: DubMastor Big Knob v2.0 — Dub Station
+          name: DubMastor Big Knob — Dub Station
           files: dist/*.zip
           body: |
             **DubMastor Big Knob — Dub Station (King Tubby tribute)**
