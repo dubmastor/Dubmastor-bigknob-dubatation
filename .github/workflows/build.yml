@@ -4,7 +4,14 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+  release:
+    types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag da release que deve receber os instaladores (vazio = só compilar)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -61,7 +68,7 @@ jobs:
 
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release' || inputs.tag != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -71,7 +78,8 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          name: DubMastor Big Knob ${{ github.ref_name }} — Dub Station
+          tag_name: ${{ inputs.tag || github.event.release.tag_name || github.ref_name }}
+          name: DubMastor Big Knob v2.0 — Dub Station
           files: dist/*.zip
           body: |
             **DubMastor Big Knob — Dub Station (King Tubby tribute)**
