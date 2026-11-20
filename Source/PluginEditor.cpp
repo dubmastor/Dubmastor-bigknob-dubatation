@@ -728,7 +728,7 @@ void DubPanel::renderBackground()
     // --- placa metálica antiga "DUB STATION" (latão escovado, rebites, letras gravadas)
     {
         g.setFont (stencil (15.0f, 0.34f));
-        const juce::String t ("DUB STATION");
+        const juce::String t ("DUB STATION 3.0");
         const float tw = juce::GlyphArrangement::getStringWidth (g.getCurrentFont(), t);
         auto pl = juce::Rectangle<float> (titleRight + 26.0f, 21.0f, tw + 64.0f, 32.0f);
 
@@ -813,20 +813,108 @@ void DubPanel::renderBackground()
     }
     g.setColour (colours::inkSoft);
     g.setFont (stencil (10.5f, 0.25f));
-    g.drawText ("KING TUBBY TRIBUTE   /   V2.1", plate.getX() + 34, 52, 500, 14, juce::Justification::left);
+    g.drawText ("KING TUBBY TRIBUTE", plate.getX() + 34, 52, 500, 14, juce::Justification::left);
 
-    // faixas pintadas (vermelho / dourado / verde), desgastadas
+    // faixas da bandeira da Jamaica (verde / ouro / preto), pintadas à mão e envelhecidas
     {
-        auto stripe = juce::Rectangle<float> ((float) plate.getRight() - 330.0f, 30.0f, 290.0f, 7.0f);
-        for (auto col : { colours::jamGreen, colours::jamGold, colours::jamBlack })
+        const float sx = (float) plate.getRight() - 330.0f, sw = 290.0f, sh = 7.0f;
+        const juce::Colour faded[] = {
+            colours::jamGreen.interpolatedWith (juce::Colour (0xff6f7a4a), 0.35f),   // verde desbotado
+            colours::jamGold.interpolatedWith (juce::Colour (0xffb08a3a), 0.40f),    // ouro amarelado
+            juce::Colour (0xff2b2621) };                                            // preto que virou carvão
+        juce::Path all;
+        for (int k = 0; k < 3; ++k)
         {
-            g.setColour (col.withAlpha (0.9f));
-            g.fillRect (stripe);
-            g.setColour (colours::plate.withAlpha (0.25f));
-            for (int i = 0; i < 40; ++i)
-                g.fillRect (stripe.getX() + rng.nextFloat() * stripe.getWidth(), stripe.getY() + rng.nextFloat() * stripe.getHeight(), 2.0f, 1.0f);
-            stripe.translate (0, 9.0f);
+            const float y = 30.0f + 9.0f * (float) k;
+            // bordas irregulares de pincel
+            juce::Path band;
+            band.startNewSubPath (sx, y + rng.nextFloat() * 0.8f);
+            for (float x = sx; x <= sx + sw; x += 6.0f)
+                band.lineTo (x, y + (rng.nextFloat() - 0.3f) * 0.9f);
+            for (float x = sx + sw; x >= sx; x -= 6.0f)
+                band.lineTo (x, y + sh + (rng.nextFloat() - 0.7f) * 0.9f);
+            band.closeSubPath();
+            all.addPath (band);
+
+            juce::ColourGradient fade (faded[k].withAlpha (0.92f), sx, y, faded[k].withAlpha (0.70f), sx + sw, y, false);
+            fade.addColour (0.3, faded[k].brighter (0.12f).withAlpha (0.85f));
+            fade.addColour (0.7, faded[k].withAlpha (0.88f));
+            g.setGradientFill (fade);
+            g.fillPath (band);
         }
+
+        g.saveState();
+        g.reduceClipRegion (all);
+        const auto area = all.getBounds();
+        // pinceladas horizontais
+        for (int i = 0; i < 60; ++i)
+        {
+            const float yy = area.getY() + rng.nextFloat() * area.getHeight();
+            const float x0 = area.getX() + rng.nextFloat() * area.getWidth();
+            g.setColour ((rng.nextBool() ? juce::Colours::white : juce::Colours::black).withAlpha (0.05f + rng.nextFloat() * 0.07f));
+            g.drawHorizontalLine ((int) yy, x0, juce::jmin (area.getRight(), x0 + 15.0f + rng.nextFloat() * 70.0f));
+        }
+        // manchas de sujeira e desbotamento irregular
+        for (int i = 0; i < 12; ++i)
+        {
+            const float rr = 6.0f + rng.nextFloat() * 26.0f;
+            const juce::Point<float> pc (area.getX() + rng.nextFloat() * area.getWidth(), area.getY() + rng.nextFloat() * area.getHeight());
+            const bool light = rng.nextBool();
+            juce::ColourGradient st ((light ? colours::plate : juce::Colour (0xff4a3518)).withAlpha (light ? 0.30f : 0.25f), pc.x, pc.y,
+                                     juce::Colours::transparentBlack, pc.x + rr, pc.y, true);
+            g.setGradientFill (st);
+            g.fillEllipse (juce::Rectangle<float> (rr * 2, rr).withCentre (pc));
+        }
+        // lascas irregulares: a tinta saiu e aparece o painel por baixo (mais nas bordas)
+        for (int i = 0; i < 55; ++i)
+        {
+            const bool edge = rng.nextFloat() < 0.6f;
+            const int band = rng.nextInt (3);
+            const float y0 = 30.0f + 9.0f * (float) band;
+            const juce::Point<float> c (sx + rng.nextFloat() * sw,
+                                        edge ? (rng.nextBool() ? y0 + 0.5f : y0 + sh - 0.5f) : y0 + 1.0f + rng.nextFloat() * (sh - 2.0f));
+            const float r = 0.7f + rng.nextFloat() * (edge ? 2.2f : 1.4f);
+            juce::Path chip;
+            const int pts = 5 + rng.nextInt (3);
+            for (int j = 0; j < pts; ++j)
+            {
+                const float a = juce::MathConstants<float>::twoPi * (float) j / (float) pts + rng.nextFloat() * 0.6f;
+                const float rr = r * (0.45f + rng.nextFloat() * 0.9f);
+                const juce::Point<float> q (c.x + std::cos (a) * rr * 1.6f, c.y + std::sin (a) * rr * 0.8f);
+                if (j == 0) chip.startNewSubPath (q); else chip.lineTo (q);
+            }
+            chip.closeSubPath();
+            g.setColour (colours::plateDark.brighter (0.08f).withAlpha (0.75f));
+            g.fillPath (chip);
+            g.setColour (juce::Colours::black.withAlpha (0.12f));
+            g.strokePath (chip, juce::PathStrokeType (0.35f));
+        }
+        // riscos finos e discretos
+        for (int i = 0; i < 8; ++i)
+        {
+            const float x0 = sx + rng.nextFloat() * sw;
+            g.setColour (colours::plate.withAlpha (0.22f + rng.nextFloat() * 0.18f));
+            g.drawLine (x0, 29.0f + rng.nextFloat() * 6.0f, x0 + (rng.nextFloat() - 0.5f) * 30.0f, 48.0f + rng.nextFloat() * 8.0f, 0.4f);
+        }
+        // poeira e desbotamento geral por cima
+        g.setColour (colours::plate.withAlpha (0.14f));
+        g.fillRect (area);
+        for (int i = 0; i < 900; ++i)
+        {
+            g.setColour ((rng.nextBool() ? juce::Colours::white : juce::Colour (0xff3d2b14)).withAlpha (0.08f + rng.nextFloat() * 0.10f));
+            g.fillRect (area.getX() + rng.nextFloat() * area.getWidth(), area.getY() + rng.nextFloat() * area.getHeight(), 1.0f, 1.0f);
+        }
+        // craquelado fino
+        for (int i = 0; i < 25; ++i)
+        {
+            juce::Path crack;
+            juce::Point<float> p (sx + rng.nextFloat() * sw, area.getY() + rng.nextFloat() * area.getHeight());
+            crack.startNewSubPath (p);
+            for (int j = 0; j < 4; ++j) { p += { (rng.nextFloat() - 0.5f) * 6.0f, (rng.nextFloat() - 0.5f) * 3.0f }; crack.lineTo (p); }
+            g.setColour (juce::Colours::black.withAlpha (0.22f));
+            g.strokePath (crack, juce::PathStrokeType (0.4f));
+        }
+        g.restoreState();
     }
 
     // --- seções: moldura gravada + plaqueta preta com o nome

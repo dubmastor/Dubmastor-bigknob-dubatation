@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.22)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "")
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "")
 
-project(DubKnob VERSION 2.1.0)
+project(DubKnob VERSION 3.0.0)
 
 set(CMAKE_CXX_STANDARD 17)
 
