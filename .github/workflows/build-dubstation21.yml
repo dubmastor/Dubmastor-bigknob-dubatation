@@ -1,0 +1,132 @@
+name: Build Dub Station 2.1 (FitaEco TE-12)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'DubStation21/**'
+      - '.github/workflows/build-dubstation21.yml'
+    tags: ['ds21-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    working-directory: DubStation21
+
+jobs:
+  dsp-test:
+    name: Teste do DSP (offline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compilar e rodar o teste de estabilidade
+        run: |
+          g++ -std=c++17 -O2 -Wall -Wextra tests/render_test.cpp -o render_test
+          mkdir -p out && cd out && ../render_test
+
+  build:
+    needs: dsp-test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: Windows
+          - os: macos-latest
+            name: macOS
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout JUCE 8.0.4
+        uses: actions/checkout@v4
+        with:
+          repository: juce-framework/JUCE
+          ref: 8.0.4
+          path: JUCE
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DJUCE_DIR="${{ github.workspace }}/JUCE"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+
+      # --- Validação com pluginval (carrega o plugin, processa áudio, testa estado e interface)
+      - name: Validate VST3 with pluginval (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip -OutFile pluginval.zip
+          Expand-Archive pluginval.zip -DestinationPath pluginval
+          ./pluginval/pluginval.exe --strictness-level 5 --timeout-ms 600000 --validate "build/FitaEco_artefacts/Release/VST3/FitaEco TE-12.vst3"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Check universal binary + validate (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          VST3="build/FitaEco_artefacts/Release/VST3/FitaEco TE-12.vst3"
+          BIN="$VST3/Contents/MacOS/FitaEco TE-12"
+          echo "== Arquiteturas do binário"; lipo -info "$BIN"
+          lipo -info "$BIN" | grep -q x86_64 && lipo -info "$BIN" | grep -q arm64
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
+          unzip -q pluginval.zip
+          ./pluginval.app/Contents/MacOS/pluginval --strictness-level 5 --timeout-ms 900000 --validate "$VST3"
+          echo "== auval (validador da Apple para AU)"
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R "build/FitaEco_artefacts/Release/AU/FitaEco TE-12.component" ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar 2>/dev/null || true
+          sleep 2
+          auval -v aufx Ds21 Dblb
+
+      - name: Collect + package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item -Recurse "build/FitaEco_artefacts/Release/VST3/FitaEco TE-12.vst3" out/
+          Copy-Item "build/FitaEco_artefacts/Release/Standalone/FitaEco TE-12.exe" out/ -ErrorAction SilentlyContinue
+          Compress-Archive -Path out/* -DestinationPath ../DubStation21-Windows.zip
+
+      - name: Collect + package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p out
+          cp -R "build/FitaEco_artefacts/Release/VST3/FitaEco TE-12.vst3" out/
+          cp -R "build/FitaEco_artefacts/Release/AU/FitaEco TE-12.component" out/
+          cp -R "build/FitaEco_artefacts/Release/Standalone/FitaEco TE-12.app" out/
+          # assinatura ad-hoc para o macOS aceitar o plugin localmente
+          codesign --force --deep -s - out/*.vst3 out/*.component out/*.app
+          cd out && ditto -c -k --sequesterRsrc . ../../DubStation21-macOS.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DubStation21-${{ matrix.name }}
+          path: DubStation21-${{ matrix.name }}.zip
+
+  release:
+    needs: build
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/ds21-v') }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Dub Station 2.1 — tape echo + spring reverb
+          files: dist/*.zip
+          body: |
+            **Dub Station 2.1 (FitaEco TE-12)** — eco de fita de 3 cabeças + reverb de mola, por DubMastor.
+
+            Baixe o arquivo do seu sistema em **Assets**:
+            - **DubStation21-Windows.zip** — VST3 (+ standalone .exe)
+            - **DubStation21-macOS.zip** — VST3 e AU (+ standalone .app)

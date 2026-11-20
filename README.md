@@ -1,5 +1,7 @@
 # DubMastor Big Knob — King Tubby tribute 🟢🟡⚫
 
+> 🎛️ **Novo neste repositório:** [**Dub Station 2.1**](DubStation21/) — eco de fita de 3 cabeças + reverb de mola, com EQ gráfico e visual de equipamento dos anos 70 (pasta `DubStation21/`).
+
 **[⬇️ Baixar a versão mais nova](https://github.com/dubmastor/Dubmastor-bigknob-dubatation/releases/latest)** · instruções em [Download e instalação](#️-download-e-instalação-no-cubase)
 
 Estação de dub num plugin só: **filtro big knob** inspirado no high-pass por degraus do King Tubby, **eco de fita** com cabeçotes estilo Space Echo, **sirene de dub** e **maximizer** no final.
