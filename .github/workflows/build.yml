@@ -89,7 +89,8 @@ jobs:
 
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release' || inputs.tag != ''
+    # roda mesmo se uma plataforma falhar: publica só os zips que passaram na validação
+    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release' || inputs.tag != '') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
