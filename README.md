@@ -1,5 +1,7 @@
 # DubMastor Big Knob — King Tubby tribute 🟢🟡⚫
 
+**[⬇️ Baixar a versão mais nova](https://github.com/dubmastor/Dubmastor-bigknob-dubatation/releases/latest)** · instruções em [Download e instalação](#️-download-e-instalação-no-cubase)
+
 Estação de dub num plugin só: **filtro big knob** inspirado no high-pass por degraus do King Tubby, **eco de fita** com cabeçotes estilo Space Echo e **reverb de mola**.
 Formatos: **VST3** (Windows/macOS, para o Cubase), **AU** (macOS) e versão **Standalone**.
 
@@ -66,24 +68,44 @@ A janela é **redimensionável**: arraste o canto inferior direito (50% a 150%).
 ## MASTER
 **Dry** (zere para usar como send/FX Channel) e **Output**.
 
-## Usando no Cubase
-- **Como send (recomendado):** crie um *FX Channel* com o DubMastor Big Knob, coloque **Dry em 0** e **Send em 100%**, e mande bateria, skank e voz pelos sends do mixer.
-- **Como insert:** direto na pista, com Dry em 100% e usando THROW nos momentos certos.
-- **Automação:** ative o *Write* (W) na pista e toque o Big Knob, THROW e SHAKE ao vivo. Também dá para mapear nos *Quick Controls* para controlar por um controlador MIDI.
+## ⬇️ Download e instalação no Cubase
 
-## Como gerar o plugin (sem instalar nada)
+**Página de download (sempre a versão mais nova):**
+https://github.com/dubmastor/Dubmastor-bigknob-dubatation/releases/latest
 
-1. Crie um repositório no GitHub e envie esta pasta inteira (inclusive `.github/`).
-2. Abra a aba **Actions**: o build roda sozinho para Windows e macOS (~10 min).
-3. Ao terminar, baixe o artefato `DubMastorBigKnob-Windows` ou `DubMastorBigKnob-macOS`.
+Links diretos:
+- Windows: https://github.com/dubmastor/Dubmastor-bigknob-dubatation/releases/latest/download/DubMastorBigKnob-Windows.zip
+- Mac: https://github.com/dubmastor/Dubmastor-bigknob-dubatation/releases/latest/download/DubMastorBigKnob-macOS.zip
 
-## Instalação
+Não precisa de conta no GitHub para baixar.
 
-- **Windows:** copie `DubMastor Big Knob.vst3` para `C:\Program Files\Common Files\VST3\`
-- **macOS:** copie `DubMastor Big Knob.vst3` para `~/Library/Audio/Plug-Ins/VST3/` e `DubMastor Big Knob.component` para `~/Library/Audio/Plug-Ins/Components/` (Logic usa o AU)
+### Windows
+1. Baixe o **DubMastorBigKnob-Windows.zip** e descompacte (botão direito → *Extrair tudo*).
+2. Copie a pasta **`DubMastor Big Knob.vst3`** para:
+   `C:\Program Files\Common Files\VST3\`
+   (o Windows pede permissão de administrador: clique em *Continuar*).
+3. Abra o Cubase.
 
-Depois mande a DAW reescanear os plugins.
-No macOS, se aparecer aviso de segurança: `xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"DubMastor Big Knob.vst3"`
+### Mac
+1. Baixe o **DubMastorBigKnob-macOS.zip** (o Mac descompacta sozinho).
+2. No Finder, aperte **Cmd+Shift+G**, cole `~/Library/Audio/Plug-Ins/VST3/` e copie para lá o **`DubMastor Big Knob.vst3`**.
+3. Abra o **Terminal** e rode este comando para o macOS liberar o plugin:
+   ```
+   xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"DubMastor Big Knob.vst3"
+   ```
+4. Abra o Cubase.
+   (Para Logic: copie o `DubMastor Big Knob.component` para `~/Library/Audio/Plug-Ins/Components/` e rode o mesmo comando trocando o caminho.)
+
+### No Cubase
+- O plugin aparece como **DubMastor Big Knob** (fabricante **DubMastor**), na categoria de efeitos.
+- Se não aparecer: **Studio → VST Plug-in Manager** → refaça o scan. Se estiver na lista de bloqueados, clique em **Reactivate**.
+- **Atualizando de uma versão anterior:** feche o Cubase, substitua o `.vst3` antigo pelo novo e abra de novo.
+
+### Uso recomendado
+Crie um **FX Channel** com o DubMastor Big Knob, **DRY em 0** e **SEND em 100%**, e mande bateria, skank e voz pelos sends. Ligue o **W** (Write) da pista para gravar os movimentos do big knob, THROW, SHAKE e FIRE.
+
+## Como novas versões são geradas
+Cada envio para a branch `main` compila o plugin automaticamente (aba **Actions**). Quando uma tag `v*` é criada (ex.: `v2.0.0`), os instaladores são publicados na página de **Releases**.
 
 ## Compilar no próprio computador (opcional)
 

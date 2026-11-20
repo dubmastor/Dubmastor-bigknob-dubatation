@@ -2,7 +2,12 @@ name: Build DubMastor Big Knob
 
 on:
   push:
+    branches: [main]
+    tags: ['v*']
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -32,7 +37,12 @@ jobs:
           cp -r "build/DubKnob_artefacts/Release/VST3/DubMastor Big Knob.vst3" out/
           cp "build/DubKnob_artefacts/Release/Standalone/DubMastor Big Knob.exe" out/ || true
 
-      - name: Collect (macOS)
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path out/* -DestinationPath DubMastorBigKnob-Windows.zip
+
+      - name: Collect + package (macOS)
         if: runner.os == 'macOS'
         run: |
           mkdir -p out
@@ -41,8 +51,33 @@ jobs:
           cp -R "build/DubKnob_artefacts/Release/Standalone/DubMastor Big Knob.app" out/
           # assinatura ad-hoc para o macOS aceitar o plugin localmente
           codesign --force --deep -s - out/*.vst3 out/*.component out/*.app
+          # ditto preserva permissões e assinatura dentro do zip
+          cd out && ditto -c -k --sequesterRsrc . ../DubMastorBigKnob-macOS.zip
 
       - uses: actions/upload-artifact@v4
         with:
           name: DubMastorBigKnob-${{ matrix.name }}
-          path: out
+          path: DubMastorBigKnob-${{ matrix.name }}.zip
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: DubMastor Big Knob ${{ github.ref_name }} — Dub Station
+          files: dist/*.zip
+          body: |
+            **DubMastor Big Knob — Dub Station (King Tubby tribute)**
+
+            Baixe o arquivo do seu sistema abaixo, em **Assets**:
+            - **DubMastorBigKnob-Windows.zip** — VST3 para Cubase no Windows (+ versão standalone .exe)
+            - **DubMastorBigKnob-macOS.zip** — VST3 e AU para Mac (+ versão standalone .app)
+
+            Instruções de instalação no README do repositório.
