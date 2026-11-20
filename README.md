@@ -3,7 +3,7 @@
 Estação de dub num plugin só: **filtro big knob** inspirado no high-pass por degraus do King Tubby, **eco de fita** com cabeçotes estilo Space Echo e **reverb de mola**.
 Formatos: **VST3** (Windows/macOS, para o Cubase), **AU** (macOS) e versão **Standalone**.
 
-Cadeia: entrada → filtro → seco + eco → mola (sobre o eco e o que você joga no eco). A sirene entra direto na saída e um pouco na mola.
+Cadeia: entrada → filtro → seco + eco → mola (sobre o eco e o que você joga no eco) → **MAXIMIZER**. A sirene entra direto na saída e um pouco na mola, antes do maximizer.
 
 ## FILTER
 | Controle | O que faz |
@@ -48,6 +48,20 @@ Sirene de sound system com delay próprio. Mesmo depois que você solta o FIRE, 
 
 ## OUTPUT LEVEL
 Par de VU meters de ponteiro (L/R), com balística de VU e calibração 0 VU = -18 dBFS. A lâmpada vermelha acende acima de +3 VU.
+
+## MAXIMIZER (novo na v2.0)
+Compressor de "cola" + limiter brickwall no fim da cadeia, controlado por um fader só, no estilo Ozone.
+| Controle | O que faz |
+|---|---|
+| **Fader PUSH** (dourado) | Arraste **para baixo** para empurrar o volume (até +20 dB). A linha dourada mostra o threshold sobre o medidor IN: o que passar dela é segurado |
+| **CEILING** | Teto da saída (-3 a 0 dBFS, padrão -0.3). O sinal nunca passa dele (linha vermelha tracejada no OUT) |
+| **ON** | Liga/desliga (BYPASS). Duplo clique no fader volta para 0 |
+
+Medidor moderno: barras de LED **IN** (L/R), **GR** (redução de ganho, em laranja) e **OUT** (L/R, com peak hold), mais leituras de **PUSH**, **GR**, **PEAK** e **LUFS-S** (loudness de curto prazo, janela de 3 s, ITU-R BS.1770).
+
+O limiter usa 1,5 ms de lookahead. Essa latência é informada ao Cubase, que compensa sozinho.
+
+A janela é **redimensionável**: arraste o canto inferior direito (50% a 150%).
 
 ## MASTER
 **Dry** (zere para usar como send/FX Channel) e **Output**.

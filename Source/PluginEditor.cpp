@@ -274,9 +274,61 @@ void DubLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& b, boo
     g.drawText (b.getButtonText(), b.getLocalBounds().translated (0, down ? 2 : 1), juce::Justification::centred);
 }
 
+// fader PUSH do maximizer: trilho escuro + manopla dourada com seta apontando para o medidor
+juce::Slider::SliderLayout DubLookAndFeel::getSliderLayout (juce::Slider& s)
+{
+    if (s.getName() == "push")
+    {
+        juce::Slider::SliderLayout l;
+        l.sliderBounds = s.getLocalBounds().reduced (0, 10);
+        return l;
+    }
+    return LookAndFeel_V4::getSliderLayout (s);
+}
+
+void DubLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int w, int h, float sliderPos, float minPos, float maxPos,
+                                       juce::Slider::SliderStyle style, juce::Slider& s)
+{
+    if (s.getName() != "push")
+    {
+        LookAndFeel_V4::drawLinearSlider (g, x, y, w, h, sliderPos, minPos, maxPos, style, s);
+        return;
+    }
+    const float cx = (float) x + (float) w * 0.42f;
+    // trilho
+    auto slot = juce::Rectangle<float> (5.0f, (float) h + 8.0f).withCentre ({ cx, (float) y + (float) h * 0.5f });
+    g.setColour (juce::Colours::black.withAlpha (0.75f));
+    g.fillRoundedRectangle (slot, 2.5f);
+    g.setColour (juce::Colours::white.withAlpha (0.25f));
+    g.drawRoundedRectangle (slot.translated (0.7f, 0.7f), 2.5f, 0.6f);
+    // parte "empurrada" acesa em dourado
+    g.setColour (colours::jamGold.withAlpha (0.85f));
+    g.fillRoundedRectangle (slot.withTop ((float) y - 2.0f).withBottom (sliderPos).reduced (1.2f, 0.0f), 1.5f);
+
+    // manopla
+    juce::Path cap;
+    const float hw = (float) w * 0.40f, hh = 9.0f;
+    cap.startNewSubPath (cx - hw, sliderPos - hh);
+    cap.lineTo (cx + hw, sliderPos - hh);
+    cap.lineTo (cx + hw + 9.0f, sliderPos);
+    cap.lineTo (cx + hw, sliderPos + hh);
+    cap.lineTo (cx - hw, sliderPos + hh);
+    cap.closeSubPath();
+    g.setColour (juce::Colours::black.withAlpha (0.4f));
+    g.fillPath (cap, juce::AffineTransform::translation (1.5f, 2.5f));
+    juce::ColourGradient cg (colours::jamGold.brighter (0.35f), cx, sliderPos - hh, colours::jamGold.darker (0.45f), cx, sliderPos + hh, false);
+    g.setGradientFill (cg);
+    g.fillPath (cap);
+    g.setColour (juce::Colour (0xff5a4510));
+    g.strokePath (cap, juce::PathStrokeType (1.0f));
+    g.setColour (juce::Colour (0xff3b2d08).withAlpha (0.8f));
+    for (int i = -1; i <= 1; ++i)
+        g.drawLine (cx - hw + 4.0f, sliderPos + (float) i * 3.5f, cx + hw - 2.0f, sliderPos + (float) i * 3.5f, 1.0f);
+}
+
 //==============================================================================
-DubKnobEditor::DubKnobEditor (DubKnobProcessor& p)
-    : AudioProcessorEditor (p), proc (p),
+DubPanel::DubPanel (DubKnobProcessor& p)
+    : proc (p),
       throwBtn ("THROW", p.apvts.getParameter ("throw")),
       shakeBtn ("SHAKE", p.apvts.getParameter ("shake")),
       fireBtn ("FIRE", p.apvts.getParameter ("sirFire"))
@@ -342,23 +394,34 @@ DubKnobEditor::DubKnobEditor (DubKnobProcessor& p)
     addAndMakeVisible (fireBtn);
     setupToggle (sirHold, "sirHold", "HOLD");
 
+    setupToggle (maxOn, "maxOn", "ON");
+    setupKnob (maxCeil, "maxCeil", "CEILING");
+    maxCeil.slider.setNumDecimalPlacesToDisplay (1);
+    pushSlider.setName ("push");
+    pushSlider.setSliderStyle (juce::Slider::LinearVertical);
+    pushSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    pushSlider.setDoubleClickReturnValue (true, 0.0);
+    pushSlider.setTooltip ("Arraste para baixo para empurrar o volume");
+    addAndMakeVisible (pushSlider);
+    aPush = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.apvts, "maxThresh", pushSlider);
+
     setupKnob (dry, "dry", "DRY");
     setupKnob (out, "out", "OUTPUT");
 
     stepped.button.onClick = [this] { renderBackground(); repaint(); };
 
-    setSize (1188, 800);
+    setSize (1436, 800);
     updateSyncVisibility();
     startTimerHz (30);
 }
 
-DubKnobEditor::~DubKnobEditor()
+DubPanel::~DubPanel()
 {
     stopTimer();
     setLookAndFeel (nullptr);
 }
 
-void DubKnobEditor::setupKnob (Knob& k, const juce::String& id, const juce::String& name)
+void DubPanel::setupKnob (Knob& k, const juce::String& id, const juce::String& name)
 {
     k.slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
     k.slider.setRotaryParameters (kStartAngle, kEndAngle, true);
@@ -375,27 +438,27 @@ void DubKnobEditor::setupKnob (Knob& k, const juce::String& id, const juce::Stri
     addAndMakeVisible (k.label);
 }
 
-void DubKnobEditor::setupToggle (Toggle& t, const juce::String& id, const juce::String& text)
+void DubPanel::setupToggle (Toggle& t, const juce::String& id, const juce::String& text)
 {
     t.button.setButtonText (text);
     addAndMakeVisible (t.button);
     t.att = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.apvts, id, t.button);
 }
 
-void DubKnobEditor::placeKnob (Knob& k, juce::Rectangle<int> r)
+void DubPanel::placeKnob (Knob& k, juce::Rectangle<int> r)
 {
     k.label.setBounds (r.removeFromTop (15));
     k.slider.setBounds (r);
 }
 
-void DubKnobEditor::updateSyncVisibility()
+void DubPanel::updateSyncVisibility()
 {
     const bool sync = echoSync.button.getToggleState();
     echoDiv.slider.setVisible (sync);  echoDiv.label.setVisible (sync);
     echoMs.slider.setVisible (! sync); echoMs.label.setVisible (! sync);
 }
 
-void DubKnobEditor::timerCallback()
+void DubPanel::timerCallback()
 {
     // balística de VU: 0 VU = -18 dBFS, escala linear em tensão de -20 a +3 VU
     for (int ch = 0; ch < 2; ++ch)
@@ -409,6 +472,21 @@ void DubKnobEditor::timerCallback()
         peakLamp[ch] = vu > 3.0f;
     }
     repaint (vuPanel);
+
+    // medidor moderno: pico com queda de 20 dB/s, hold de 1.5 s, GR com retorno suave
+    for (int ch = 0; ch < 2; ++ch)
+    {
+        const float inDb  = juce::Decibels::gainToDecibels (proc.getMaxInPeak (ch), -60.0f);
+        const float outDb = juce::Decibels::gainToDecibels (proc.getMaxOutPeak (ch), -60.0f);
+        inDisp[ch]  = inDb  > inDisp[ch]  ? inDb  : juce::jmax (inDb,  inDisp[ch]  - 0.67f);
+        outDisp[ch] = outDb > outDisp[ch] ? outDb : juce::jmax (outDb, outDisp[ch] - 0.67f);
+        if (outDb >= holdDb[ch]) { holdDb[ch] = outDb; holdT[ch] = 1.5f; }
+        else if ((holdT[ch] -= 1.0f / 30.0f) <= 0.0f) holdDb[ch] = juce::jmax (-60.0f, holdDb[ch] - 0.67f);
+    }
+    const float gr = proc.getMaxGrDb();
+    grDisp = gr < grDisp ? gr : juce::jmin (gr, grDisp + 1.0f);
+    lufsDisp += 0.25f * (proc.getLufs() - lufsDisp);
+    repaint (maxPanel);
     repaint (echoGraph.expanded (4));
     repaint (springGraph.expanded (4));
     repaint (sirWave.slider.getBounds().expanded (4));
@@ -426,7 +504,7 @@ void DubKnobEditor::timerCallback()
 
 //==============================================================================
 // Escala impressa em volta do knob (marcas + 0 e 10 nas pontas)
-void DubKnobEditor::drawKnobScale (juce::Graphics& g, juce::Slider& s, int ticks, bool numbers)
+void DubPanel::drawKnobScale (juce::Graphics& g, juce::Slider& s, int ticks, bool numbers)
 {
     const auto circ = knobCircle (s);
     const auto c = circ.getCentre();
@@ -450,7 +528,7 @@ void DubKnobEditor::drawKnobScale (juce::Graphics& g, juce::Slider& s, int ticks
     }
 }
 
-void DubKnobEditor::renderBackground()
+void DubPanel::renderBackground()
 {
     const float scale = 2.0f; // renderiza em 2x para telas retina
     background = juce::Image (juce::Image::ARGB, (int) (getWidth() * scale), (int) (getHeight() * scale), true);
@@ -715,7 +793,7 @@ void DubKnobEditor::renderBackground()
     }
     g.setColour (colours::inkSoft);
     g.setFont (stencil (10.5f, 0.25f));
-    g.drawText ("KING TUBBY TRIBUTE", plate.getX() + 34, 52, 500, 14, juce::Justification::left);
+    g.drawText ("KING TUBBY TRIBUTE   /   V2.0", plate.getX() + 34, 52, 500, 14, juce::Justification::left);
 
     // faixas pintadas (vermelho / dourado / verde), desgastadas
     {
@@ -753,6 +831,7 @@ void DubKnobEditor::renderBackground()
     section (springPanel, "SPRING");
     section (masterPanel, "MASTER");
     section (sirenPanel,  "DUB SIREN");
+    section (maxPanel,    "MAXIMIZER");
     section (vuPanel,     "OUTPUT LEVEL");
 
     // --- desgaste em volta dos knobs mais usados
@@ -808,6 +887,7 @@ void DubKnobEditor::renderBackground()
     }
     for (auto* k : { &eqEHp, &eqEMf, &eqEMg, &eqELp, &eqSHp, &eqSMf, &eqSMg, &eqSLp })
         drawKnobScale (g, k->slider, 11, false);
+    drawKnobScale (g, maxCeil.slider, 11, false);
 
     // divisória gravada + "RETURN EQ" acima dos visores
     for (auto gr : { echoGraph, springGraph })
@@ -853,7 +933,7 @@ void DubKnobEditor::renderBackground()
     g.drawText ("CUTOFF  -  Hz", juce::Rectangle<float> (200, 12).withCentre ({ c.x, bc.getY() - 44 }), juce::Justification::centred);
 }
 
-void DubKnobEditor::paint (juce::Graphics& g)
+void DubPanel::paint (juce::Graphics& g)
 {
     g.fillAll (colours::woodDark);
     if (background.isValid())
@@ -914,10 +994,127 @@ void DubKnobEditor::paint (juce::Graphics& g)
 
     drawEqGraph (g, echoGraph.toFloat(), false);
     drawEqGraph (g, springGraph.toFloat(), true);
+    drawMaximizer (g);
+}
+
+// medidor moderno do MAXIMIZER: leituras digitais + barras de LED (IN, GR, OUT)
+void DubPanel::drawMaximizer (juce::Graphics& g)
+{
+    auto glass = [&] (juce::Rectangle<float> r)
+    {
+        g.setColour (juce::Colour (0xff0c0907));
+        g.fillRoundedRectangle (r.expanded (3), 5.0f);
+        juce::ColourGradient gl (juce::Colour (0xff1b1712), r.getX(), r.getY(), juce::Colour (0xff0d0b09), r.getX(), r.getBottom(), false);
+        g.setGradientFill (gl);
+        g.fillRoundedRectangle (r, 4.0f);
+    };
+
+    // leituras
+    const auto ro = maxReadout.toFloat();
+    glass (ro);
+    const float outPk = juce::jmax (outDisp[0], outDisp[1]);
+    const float push  = -(float) pushSlider.getValue();
+    struct Row { const char* label; juce::String value; juce::Colour col; };
+    const Row rows[] = {
+        { "PUSH",  "+" + juce::String (push, 1) + " dB",                                             colours::jamGold },
+        { "GR",    juce::String (grDisp, 1) + " dB",                                                juce::Colour (0xffff9f1c) },
+        { "PEAK",  outPk <= -59.0f ? juce::String ("-inf") : juce::String (outPk, 1) + " dB",        outPk > -0.5f ? juce::Colour (0xffff5a47) : juce::Colour (0xff4be08a) },
+        { "LUFS-S", lufsDisp <= -69.0f ? juce::String ("--") : juce::String (lufsDisp, 1),            juce::Colour (0xff6fd3ff) } };
+    auto rr = ro.reduced (10.0f, 6.0f);
+    const float rh = rr.getHeight() / 4.0f;
+    for (auto& row : rows)
+    {
+        auto line = rr.removeFromTop (rh);
+        g.setFont (stencil (10.0f, 0.2f));
+        g.setColour (juce::Colours::white.withAlpha (0.45f));
+        g.drawText (row.label, line, juce::Justification::centredLeft);
+        g.setFont (juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 15.0f, juce::Font::bold)));
+        g.setColour (row.col.withAlpha (0.25f));
+        g.drawText (row.value, line.translated (0, 1), juce::Justification::centredRight);
+        g.setColour (row.col);
+        g.drawText (row.value, line, juce::Justification::centredRight);
+    }
+
+    // baia dos medidores
+    const auto bay = meterBay.toFloat();
+    glass (bay);
+    const bool on = maxOn.button.getToggleState();
+
+    // escala dB
+    g.setFont (juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 9.5f, juce::Font::plain)));
+    for (float db : { 0.0f, -3.0f, -6.0f, -10.0f, -15.0f, -20.0f, -30.0f })
+    {
+        const float y = dbToY (db);
+        g.setColour (juce::Colours::white.withAlpha (0.10f));
+        g.drawHorizontalLine ((int) y, inX - 4.0f, outX + 40.0f);
+        g.setColour (juce::Colours::white.withAlpha (0.45f));
+        g.drawText (juce::String ((int) db), juce::Rectangle<float> (24, 10).withCentre ({ bay.getX() + 15.0f, y }), juce::Justification::centredRight);
+    }
+
+    auto ledBar = [&] (float x, float w, float levelDb, float hold, bool isGr)
+    {
+        const float top = meterTop, bot = meterBottom;
+        for (float y = bot; y > top; y -= 4.0f)
+        {
+            const float segDb = -30.0f * (y - top) / (bot - top);
+            bool lit; juce::Colour c;
+            if (isGr) { lit = segDb >= levelDb && levelDb < -0.05f; c = juce::Colour (0xffff9f1c); }
+            else
+            {
+                lit = segDb <= levelDb;
+                c = segDb > -1.0f ? juce::Colour (0xffff4a3a) : segDb > -6.0f ? juce::Colour (0xffffd23f) : juce::Colour (0xff2fd673);
+            }
+            if (isGr) lit = (-30.0f * (y - 3.0f - top) / (bot - top)) >= levelDb && levelDb < -0.05f;
+            g.setColour (lit ? c : c.withAlpha (0.10f));
+            g.fillRect (x, y - 3.0f, w, 3.0f);
+        }
+        if (! isGr && hold > -30.0f)
+        {
+            g.setColour (juce::Colours::white.withAlpha (0.85f));
+            g.fillRect (x, dbToY (hold) - 1.0f, w, 2.0f);
+        }
+    };
+
+    const float bw = 13.0f, gap = 3.0f;
+    ledBar (inX,            bw, inDisp[0], -100.0f, false);
+    ledBar (inX + bw + gap, bw, inDisp[1], -100.0f, false);
+    ledBar (grX,            16.0f, on ? grDisp : 0.0f, 0.0f, true);
+    ledBar (outX,            bw, outDisp[0], holdDb[0], false);
+    ledBar (outX + bw + gap, bw, outDisp[1], holdDb[1], false);
+
+    // linha do threshold atravessando os medidores de entrada
+    const float ty = dbToY ((float) pushSlider.getValue());
+    g.setColour (colours::jamGold.withAlpha (on ? 0.95f : 0.35f));
+    g.drawLine (inX - 6.0f, ty, inX + 2 * bw + gap + 3.0f, ty, 1.6f);
+    // teto nos medidores de saída
+    const float cy = dbToY ((float) maxCeil.slider.getValue());
+    g.setColour (juce::Colour (0xffff4a3a).withAlpha (0.8f));
+    for (float x = outX - 3.0f; x < outX + 2 * bw + gap + 3.0f; x += 5.0f)
+        g.drawLine (x, cy, x + 2.5f, cy, 1.2f);
+
+    // rótulos
+    g.setFont (stencil (9.5f, 0.2f));
+    g.setColour (juce::Colours::white.withAlpha (0.6f));
+    auto lab = [&] (const char* t, float x, float w) { g.drawText (t, juce::Rectangle<float> (x - 6.0f, bay.getY() + 4.0f, w + 12.0f, 12.0f), juce::Justification::centred); };
+    lab ("IN", inX, 2 * bw + gap);
+    lab ("GR", grX, 16.0f);
+    lab ("OUT", outX, 2 * bw + gap);
+    g.setColour (juce::Colours::white.withAlpha (0.35f));
+    auto lab2 = [&] (const char* t, float x) { g.drawText (t, juce::Rectangle<float> (x, meterBottom + 3.0f, bw, 10.0f), juce::Justification::centred); };
+    lab2 ("L", inX); lab2 ("R", inX + bw + gap); lab2 ("L", outX); lab2 ("R", outX + bw + gap);
+
+    if (! on)
+    {
+        g.setColour (juce::Colours::black.withAlpha (0.45f));
+        g.fillRoundedRectangle (bay, 4.0f);
+        g.setColour (juce::Colours::white.withAlpha (0.7f));
+        g.setFont (stencil (12.0f, 0.3f));
+        g.drawText ("BYPASS", bay, juce::Justification::centred);
+    }
 }
 
 // visor da curva de EQ: vidro escuro, grade e curva âmbar (20 Hz – 20 kHz, ±15 dB)
-void DubKnobEditor::drawEqGraph (juce::Graphics& g, juce::Rectangle<float> r, bool isSpring)
+void DubPanel::drawEqGraph (juce::Graphics& g, juce::Rectangle<float> r, bool isSpring)
 {
     g.setColour (juce::Colour (0xff0c0907));
     g.fillRoundedRectangle (r.expanded (3), 4.0f);
@@ -963,7 +1160,7 @@ void DubKnobEditor::drawEqGraph (juce::Graphics& g, juce::Rectangle<float> r, bo
     g.fillRoundedRectangle (r.withHeight (r.getHeight() * 0.45f), 3.0f);
 }
 
-void DubKnobEditor::placeEq (juce::Rectangle<int> r, Knob& a, Knob& b, Knob& c, Knob& d, juce::Rectangle<int>& graph)
+void DubPanel::placeEq (juce::Rectangle<int> r, Knob& a, Knob& b, Knob& c, Knob& d, juce::Rectangle<int>& graph)
 {
     r.removeFromTop (18);                       // espaço do título "RETURN EQ"
     graph = r.removeFromTop (54).reduced (8, 0);
@@ -976,7 +1173,7 @@ void DubKnobEditor::placeEq (juce::Rectangle<int> r, Knob& a, Knob& b, Knob& c, 
 }
 
 // VU de ponteiro: moldura escura, mostrador creme iluminado, zona vermelha acima de 0
-void DubKnobEditor::drawVu (juce::Graphics& g, juce::Rectangle<float> r, int ch)
+void DubPanel::drawVu (juce::Graphics& g, juce::Rectangle<float> r, int ch)
 {
     // moldura
     g.setColour (juce::Colours::black.withAlpha (0.35f));
@@ -1055,7 +1252,7 @@ void DubKnobEditor::drawVu (juce::Graphics& g, juce::Rectangle<float> r, int ch)
     g.fillEllipse (lamp);
 }
 
-void DubKnobEditor::resized()
+void DubPanel::resized()
 {
     auto full = getLocalBounds();
     woodL = full.removeFromLeft (30);
@@ -1064,6 +1261,8 @@ void DubKnobEditor::resized()
 
     auto area = plate.reduced (12);
     area.removeFromTop (66);
+    maxPanel = area.removeFromRight (236);
+    area.removeFromRight (12);
     auto bottomRow = area.removeFromBottom (170);
     area.removeFromBottom (18);
     sirenPanel = bottomRow.removeFromLeft (690);
@@ -1158,6 +1357,30 @@ void DubKnobEditor::resized()
         fireBtn.setBounds (btns.removeFromTop (70));
         btns.removeFromTop (10);
         sirHold.button.setBounds (btns.removeFromTop (40).reduced (2, 4));
+    }
+
+    // MAXIMIZER
+    {
+        auto r = maxPanel.reduced (12);
+        r.removeFromTop (14);
+        maxReadout = r.removeFromTop (96).reduced (2, 0);
+        r.removeFromTop (14);
+        auto bottom = r.removeFromBottom (118);
+        meterBay = r.reduced (2, 0);
+        meterTop = (float) meterBay.getY() + 24.0f;
+        meterBottom = (float) meterBay.getBottom() - 18.0f;
+        const float bx = (float) meterBay.getX();
+        const float pushX = bx + 30.0f;
+        inX  = pushX + 40.0f;
+        grX  = inX + 2 * 13.0f + 3.0f + 16.0f;
+        outX = grX + 16.0f + 16.0f;
+        const int sy = (int) dbToY (0.0f) - 10, sh = (int) (dbToY (-20.0f) - dbToY (0.0f)) + 20;
+        pushSlider.setBounds ((int) pushX, sy, 36, sh);
+
+        bottom.removeFromTop (8);
+        auto ceilCell = bottom.removeFromLeft (bottom.getWidth() / 2);
+        placeKnob (maxCeil, ceilCell);
+        maxOn.button.setBounds (bottom.withSizeKeepingCentre (bottom.getWidth() - 12, 38).translated (0, -8));
     }
 
     // VU L/R

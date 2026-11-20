@@ -11,6 +11,9 @@ public:
     void drawToggleButton (juce::Graphics&, juce::ToggleButton&, bool, bool) override;
     void drawButtonBackground (juce::Graphics&, juce::Button&, const juce::Colour&, bool, bool) override;
     void drawButtonText (juce::Graphics&, juce::TextButton&, bool, bool) override;
+    void drawLinearSlider (juce::Graphics&, int x, int y, int w, int h, float sliderPos, float minPos, float maxPos,
+                           juce::Slider::SliderStyle, juce::Slider&) override;
+    juce::Slider::SliderLayout getSliderLayout (juce::Slider&) override;
 };
 
 // Botão que só fica ligado enquanto está pressionado (THROW / SHAKE)
@@ -31,11 +34,12 @@ private:
     juce::RangedAudioParameter* param;
 };
 
-class DubKnobEditor : public juce::AudioProcessorEditor, private juce::Timer
+// Painel com todo o layout no tamanho base; o editor o escala para a janela redimensionável
+class DubPanel : public juce::Component, private juce::Timer
 {
 public:
-    explicit DubKnobEditor (DubKnobProcessor&);
-    ~DubKnobEditor() override;
+    explicit DubPanel (DubKnobProcessor&);
+    ~DubPanel() override;
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -90,11 +94,43 @@ private:
     bool peakLamp[2] { false, false };
     void drawVu (juce::Graphics&, juce::Rectangle<float>, int ch);
 
+    // MAXIMIZER (v2.0)
+    Toggle maxOn;
+    Knob maxCeil;
+    juce::Slider pushSlider;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> aPush;
+    juce::Rectangle<int> maxPanel, maxReadout, meterBay;
+    float meterTop = 0, meterBottom = 1, inX = 0, grX = 0, outX = 0;
+    float inDisp[2] { -60, -60 }, outDisp[2] { -60, -60 }, holdDb[2] { -60, -60 }, holdT[2] { 0, 0 }, grDisp = 0, lufsDisp = -70;
+    float dbToY (float db) const { return meterTop + juce::jlimit (0.0f, 1.0f, -db / 30.0f) * (meterBottom - meterTop); }
+    void drawMaximizer (juce::Graphics&);
+
     juce::Image background;
     bool bgStepped = true, bgSync = true;
     juce::Rectangle<int> woodL, woodR, plate;
     juce::Rectangle<int> bigArea, filterPanel, echoPanel, springPanel, masterPanel, echoInfo;
     juce::String freqText, echoText;
 
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DubPanel)
+};
+
+class DubKnobEditor : public juce::AudioProcessorEditor
+{
+public:
+    explicit DubKnobEditor (DubKnobProcessor& p) : juce::AudioProcessorEditor (p), panel (p)
+    {
+        addAndMakeVisible (panel);
+        const int w = panel.getWidth(), h = panel.getHeight();
+        setResizable (true, true);
+        setResizeLimits (w / 2, h / 2, w * 3 / 2, h * 3 / 2);
+        if (auto* c = getConstrainer()) c->setFixedAspectRatio ((double) w / (double) h);
+        setSize (w, h);
+    }
+    void resized() override
+    {
+        panel.setTransform (juce::AffineTransform::scale ((float) getWidth() / (float) panel.getWidth()));
+    }
+private:
+    DubPanel panel;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DubKnobEditor)
 };

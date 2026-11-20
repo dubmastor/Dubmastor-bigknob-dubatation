@@ -44,6 +44,11 @@ public:
         e.midDb = getP ((std::string (pre) + "Mg").c_str());
         return e;
     }
+    // medidor do MAXIMIZER (picos lineares do último bloco, GR em dB <= 0, LUFS curto prazo)
+    float getMaxInPeak (int ch) const  { return mInPeak[ch & 1].load(); }
+    float getMaxOutPeak (int ch) const { return mOutPeak[ch & 1].load(); }
+    float getMaxGrDb() const           { return mGrDb.load(); }
+    float getLufs() const              { return mLufs.load(); }
     float getVuLevel (int ch) const   { return vuRms[ch & 1].load(); } // RMS linear da saída
 
     juce::AudioProcessorValueTreeState apvts;
@@ -58,6 +63,10 @@ private:
     dub::SpringReverb  spring;
     dub::DubSiren      siren;
     dub::ReturnEQ      echoEq, springEq;
+    dub::Maximizer     maximizer;
+    dub::LoudnessMeter loudness;
+    std::atomic<float> mInPeak[2] { { 0.0f }, { 0.0f } }, mOutPeak[2] { { 0.0f }, { 0.0f } };
+    std::atomic<float> mGrDb { 0.0f }, mLufs { -70.0f };
     std::atomic<float> vuRms[2] { { 0.0f }, { 0.0f } };
     juce::SmoothedValue<float> dryGain, springGain, outGain;
 

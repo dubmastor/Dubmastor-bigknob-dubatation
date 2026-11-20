@@ -89,6 +89,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout DubKnobProcessor::createLayo
     p.push_back (std::make_unique<AudioParameterBool>  (ParameterID { "sirFire", 1 }, "Siren Fire", false));
     p.push_back (std::make_unique<AudioParameterBool>  (ParameterID { "sirHold", 1 }, "Siren Hold", false));
 
+    // --- MAXIMIZER (v2.0)
+    p.push_back (std::make_unique<AudioParameterBool>  (ParameterID { "maxOn", 1 }, "Maximizer On", true));
+    p.push_back (std::make_unique<AudioParameterFloat> (ParameterID { "maxThresh", 1 }, "Maximizer Threshold",
+                                                        NormalisableRange<float> (-20.0f, 0.0f), 0.0f, db()));
+    p.push_back (std::make_unique<AudioParameterFloat> (ParameterID { "maxCeil", 1 }, "Maximizer Ceiling",
+                                                        NormalisableRange<float> (-3.0f, 0.0f), -0.3f, db()));
+
     // --- MASTER
     p.push_back (std::make_unique<AudioParameterFloat> (ParameterID { "dry", 1 }, "Dry", NormalisableRange<float> (0.0f, 100.0f), 100.0f, pct()));
     p.push_back (std::make_unique<AudioParameterFloat> (ParameterID { "out", 1 }, "Output", NormalisableRange<float> (-24.0f, 12.0f), 0.0f, db()));
@@ -110,6 +117,9 @@ void DubKnobProcessor::prepareToPlay (double sampleRate, int)
     spring.prepare (sampleRate);
     siren.prepare (sampleRate);
     echoEq.prepare (sampleRate);
+    maximizer.prepare (sampleRate);
+    loudness.prepare (sampleRate);
+    setLatencySamples (maximizer.getLatency());
     springEq.prepare (sampleRate);
     for (auto* s : { &dryGain, &springGain, &outGain })
         s->reset (sampleRate, 0.02);
@@ -162,6 +172,14 @@ void DubKnobProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     sr.level = getP ("sirLevel") / 100.0f;
     sr.gate = getP ("sirFire") > 0.5f || getP ("sirHold") > 0.5f;
     siren.setSettings (sr);
+    {
+        dub::MaximizerSettings ms;
+        ms.on = getP ("maxOn") > 0.5f;
+        ms.pushDb = -getP ("maxThresh");
+        ms.ceilingDb = getP ("maxCeil");
+        maximizer.setSettings (ms);
+    }
+    float inPk[2] = { 0, 0 }, outPk[2] = { 0, 0 }, grMin = 0.0f;
     echoEq.setSettings (getEqSettings (false));
     springEq.setSettings (getEqSettings (true));
 
@@ -187,14 +205,25 @@ void DubKnobProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
         springEq.processSample (sl, sr2);
         const float sg = springGain.getNextValue(), dg = dryGain.getNextValue(), og = outGain.getNextValue();
-        const float yl = (xl * dg + el + sl * sg + sir) * og;
-        const float yr = (xr * dg + er + sr2 * sg + sir) * og;
+        float yl = (xl * dg + el + sl * sg + sir) * og;
+        float yr = (xr * dg + er + sr2 * sg + sir) * og;
+        inPk[0] = std::max (inPk[0], std::fabs (yl)); inPk[1] = std::max (inPk[1], std::fabs (yr));
+        maximizer.processSample (yl, yr);
+        grMin = std::min (grMin, maximizer.getLastGainReductionDb());
+        outPk[0] = std::max (outPk[0], std::fabs (yl)); outPk[1] = std::max (outPk[1], std::fabs (yr));
+        loudness.processSample (yl, yr);
         sumSq[0] += yl * yl; sumSq[1] += yr * yr;
         if (R) { L[i] = yl; R[i] = yr; }
         else     L[i] = 0.5f * (yl + yr);
     }
     for (int ch = 0; ch < 2; ++ch)
+    {
         vuRms[ch].store (std::sqrt (sumSq[ch] / (float) juce::jmax (1, n)));
+        mInPeak[ch].store (inPk[ch]);
+        mOutPeak[ch].store (outPk[ch]);
+    }
+    mGrDb.store (grMin);
+    mLufs.store (loudness.getShortTermLufs());
 }
 
 void DubKnobProcessor::getStateInformation (juce::MemoryBlock& destData)
