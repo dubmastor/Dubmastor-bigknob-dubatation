@@ -30,8 +30,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Checkout JUCE 8.0.4
+        uses: actions/checkout@v4
+        with:
+          repository: juce-framework/JUCE
+          ref: 8.0.4
+          path: JUCE
+
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DJUCE_DIR=JUCE
 
       - name: Build
         run: cmake --build build --config Release --parallel 4
