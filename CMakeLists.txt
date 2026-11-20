@@ -1,9 +1,12 @@
 cmake_minimum_required(VERSION 3.22)
+
+# precisam vir ANTES do project(): binário universal (Apple Silicon + Intel)
+set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "")
+set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "")
+
 project(DubKnob VERSION 2.0.0)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "")
-set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "")
 
 # Use -DJUCE_DIR=/caminho/JUCE para uma cópia local; senão baixa do GitHub
 if(DEFINED JUCE_DIR)
