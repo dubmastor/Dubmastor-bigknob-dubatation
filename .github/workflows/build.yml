@@ -46,16 +46,30 @@ jobs:
           ./pluginval/pluginval.exe --strictness-level 5 --timeout-ms 600000 --validate "build/DubKnob_artefacts/Release/VST3/DubMastor Big Knob.vst3"
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
-      - name: Check universal binary + validate with pluginval (macOS)
+      - name: Check universal binary + validate (macOS)
         if: runner.os == 'macOS'
         run: |
-          BIN="build/DubKnob_artefacts/Release/VST3/DubMastor Big Knob.vst3/Contents/MacOS/DubMastor Big Knob"
-          lipo -info "$BIN"
+          VST3="build/DubKnob_artefacts/Release/VST3/DubMastor Big Knob.vst3"
+          BIN="$VST3/Contents/MacOS/DubMastor Big Knob"
+          echo "== Arquiteturas do binário"; lipo -info "$BIN"
           lipo -info "$BIN" | grep -q x86_64 && lipo -info "$BIN" | grep -q arm64
           curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
           unzip -q pluginval.zip
-          ./pluginval.app/Contents/MacOS/pluginval --strictness-level 5 --timeout-ms 600000 --validate "build/DubKnob_artefacts/Release/VST3/DubMastor Big Knob.vst3"
-          ./pluginval.app/Contents/MacOS/pluginval --strictness-level 5 --timeout-ms 600000 --validate "build/DubKnob_artefacts/Release/AU/DubMastor Big Knob.component" || echo "AU: validação pulada (o runner pode não registrar AUs fora da pasta do sistema)"
+          PV=./pluginval.app/Contents/MacOS/pluginval
+          echo "== pluginval VST3, nível máximo (Apple Silicon)"
+          $PV --strictness-level 10 --timeout-ms 900000 --validate "$VST3"
+          echo "== pluginval VST3, parte Intel via Rosetta"
+          if arch -x86_64 /usr/bin/true 2>/dev/null; then
+            arch -x86_64 $PV --strictness-level 5 --timeout-ms 900000 --validate "$VST3"
+          else
+            echo "Rosetta indisponível no runner; parte Intel conferida só pelo lipo"
+          fi
+          echo "== auval (validador oficial da Apple para AU)"
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R "build/DubKnob_artefacts/Release/AU/DubMastor Big Knob.component" ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar 2>/dev/null || true
+          sleep 2
+          auval -v aufx Dbkn Dblb
 
       - name: Collect (Windows)
         if: runner.os == 'Windows'
