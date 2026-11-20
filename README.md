@@ -1,3 +1,11 @@
+> ## 📦 Este repositório mudou de endereço
+> Os plugins agora ficam em **[github.com/dubmastor/DubMastor-DubStation-](https://github.com/dubmastor/DubMastor-DubStation-)**, cada um na sua pasta:
+> - **DubMastor Big Knob 3.1** (com botão BYPASS) → `BigKnob/`
+> - **Dub Station 2.1 (FitaEco TE-12)** → `DubStation21/`
+>
+> Downloads atualizados: **[página de Releases do repositório novo](https://github.com/dubmastor/DubMastor-DubStation-/releases/latest)**.
+> Este repositório fica apenas como arquivo das versões antigas.
+
 # DubMastor Big Knob — King Tubby tribute 🟢🟡⚫
 
 > 🎛️ **Novo neste repositório:** [**Dub Station 2.1**](DubStation21/) — eco de fita de 3 cabeças + reverb de mola, com EQ gráfico e visual de equipamento dos anos 70 (pasta `DubStation21/`).
